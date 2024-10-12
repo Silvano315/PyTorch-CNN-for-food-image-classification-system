@@ -1,6 +1,8 @@
 import os
 import logging
 from typing import List, Tuple, Dict
+import numpy as np
+
 
 def get_paths_to_files(dir_path: str) -> Tuple[List[str], List[str]]:
     """
@@ -91,3 +93,7 @@ def get_logger(ch_log_level: int = logging.INFO, fh_log_level: int = logging.INF
     logger.addHandler(fh)
     
     return logger
+
+
+def calculate_mean_std(data):
+    return np.mean(data), np.std(data)
