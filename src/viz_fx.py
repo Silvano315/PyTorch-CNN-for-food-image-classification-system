@@ -1,6 +1,7 @@
 import random
 import os
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 from typing import Dict, List, Tuple
 from PIL import Image
@@ -10,6 +11,8 @@ from plotly.subplots import make_subplots
 from sklearn.metrics import confusion_matrix
 import torch
 import torchvision
+
+from src.utils import calculate_mean_std
 
 
 def display_random_images(image_paths: List[str], n: int = 25) -> Tuple[plt.Figure, plt.Axes]:
@@ -321,6 +324,67 @@ def visualize_augmented_images(dataset: torchvision.datasets.ImageFolder, num_im
 
     plt.tight_layout()
     plt.show()
+
+
+def scatter_plot_metrics(train_csv_path: str, val_csv_path: str) -> None:
+    """
+    Plot chosen metrics from training and validation CSV files using Plotly.
+    
+    Args:
+        train_csv_path (str): Path to the CSV file containing training metrics.
+        val_csv_path (str): Path to the CSV file containing validation metrics.
+    
+    Returns:
+        None: Displays an interactive scatter plot of the training and validation metrics.
+    """
+    
+    train_df = pd.read_csv(train_csv_path)
+    val_df = pd.read_csv(val_csv_path)
+    
+    epochs = train_df['epoch'].tolist()
+    
+    fig = go.Figure()
+    dropdown_buttons = []
+    metrics = ['loss', 'accuracy', 'precision', 'recall', 'f1']
+    
+    for i, metric in enumerate(metrics):
+        train_mean, train_std = calculate_mean_std(train_df[metric])
+        val_mean, val_std = calculate_mean_std(val_df[metric])
+        
+        fig.add_trace(go.Scatter(
+            x=epochs, y=train_df[metric], mode='lines+markers', visible=(i == 0),
+            name=f'Train {metric.capitalize()} (Mean: {train_mean:.2f}, Std: {train_std:.2f})'
+        ))
+        fig.add_trace(go.Scatter(
+            x=epochs, y=val_df[metric], mode='lines+markers', visible=(i == 0),
+            name=f'Val {metric.capitalize()} (Mean: {val_mean:.2f}, Std: {val_std:.2f})'
+        ))
+        
+        dropdown_buttons.append({
+            'label': metric.capitalize(),
+            'method': 'update',
+            'args': [
+                {'visible': [False] * len(metrics) * 2},
+                {'title': f'{metric.capitalize()}'}
+            ]
+        })
+        dropdown_buttons[-1]['args'][0]['visible'][i * 2] = True
+        dropdown_buttons[-1]['args'][0]['visible'][i * 2 + 1] = True
+    
+    fig.update_layout(
+        title='Model Performance per Epoch',
+        xaxis_title='Epoch',
+        yaxis_title='Metric Value',
+        updatemenus=[{
+            'buttons': dropdown_buttons,
+            'direction': 'down',
+            'showactive': True,
+        }],
+        legend_title="Legend"
+    )
+    
+    fig.show()
+
 
 
 def plot_confusion_matrix(y_true: np.ndarray, y_pred: np.ndarray, classes: List[str]) -> None:
