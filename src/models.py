@@ -80,6 +80,9 @@ class Experiment:
             with open(fpath, 'w') as f:
                 f.write(header)
 
+    def increment_epoch(self):
+        self.epoch += 1
+
     def load_history_from_file(self, split: str):
         fpath = getattr(self, f'{split}_history_fpath')
         data = np.loadtxt(fpath, delimiter=',', skiprows=1)
@@ -168,6 +171,20 @@ class Experiment:
         except Exception as e:
             self.log(f"Error loading optimizer: {str(e)}")
             raise
+
+    def get_state(self):
+        return {
+            'epoch': self.epoch,
+            'best_val_loss': self.best_val_loss,
+            'best_val_loss_epoch': self.best_val_loss_epoch,
+            'history': self.history
+        }
+
+    def set_state(self, state):
+        self.epoch = state['epoch']
+        self.best_val_loss = state['best_val_loss']
+        self.best_val_loss_epoch = state['best_val_loss_epoch']
+        self.history = state['history']
 
     def plot_history(self):
         for metric in self.metrics:
@@ -327,14 +344,14 @@ class EarlyStopping(Callback):
     
 
 class ModelCheckpoint(Callback):
-    def __init__(self, filepath: str, monitor: str = 'val_loss', verbose: int = 0, 
-                 save_best_only: bool = False, mode: str = 'auto', save_weights_only: bool = False):
+    def __init__(self, filepath: str, monitor: str = 'val_loss', verbose: int = 0,
+                 save_best_only: bool = False, mode: str = 'auto'):
         self.filepath = filepath
         self.monitor = monitor
         self.verbose = verbose
         self.save_best_only = save_best_only
-        self.save_weights_only = save_weights_only
         self.mode = mode
+        self.best = None
         self.monitor_op = None
         self._init_monitor_op()
 
@@ -350,7 +367,8 @@ class ModelCheckpoint(Callback):
             self.monitor_op = np.greater
             self.best = -float('inf')
 
-    def on_epoch_end(self, epoch: int, logs: Dict[str, float], model: torch.nn.Module):
+    def on_epoch_end(self, epoch: int, logs: Dict[str, float], model: torch.nn.Module, 
+                     optimizer: torch.optim.Optimizer, experiment: Any):
         current = logs.get(self.monitor)
         if current is None:
             print(f"Can't save best model, metric `{self.monitor}` is not available. "
@@ -363,17 +381,24 @@ class ModelCheckpoint(Callback):
                     print(f'\nEpoch {epoch:05d}: {self.monitor} improved from {self.best:.5f} to {current:.5f}, '
                           f'saving model to {self.filepath}')
                 self.best = current
-                if self.save_weights_only:
-                    torch.save(model.state_dict(), self.filepath)
-                else:
-                    torch.save(model, self.filepath)
+                self._save_checkpoint(model, optimizer, epoch, logs, experiment)
         else:
             if self.verbose > 0:
                 print(f'\nEpoch {epoch:05d}: saving model to {self.filepath}')
-            if self.save_weights_only:
-                torch.save(model.state_dict(), self.filepath)
-            else:
-                torch.save(model, self.filepath)
+            self._save_checkpoint(model, optimizer, epoch, logs, experiment)
+
+    def _save_checkpoint(self, model: torch.nn.Module, optimizer: torch.optim.Optimizer, 
+                         epoch: int, logs: Dict[str, float], experiment: Any):
+        checkpoint = {
+            'epoch': epoch,
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+            'logs': logs,
+            'best': self.best,
+            'experiment_state': experiment.get_state() 
+        }
+        
+        torch.save(checkpoint, self.filepath)
 
 class ReduceLROnPlateau(Callback):
     def __init__(self, optimizer: torch.optim.Optimizer, mode: str = 'min', factor: float = 0.1, 
@@ -624,7 +649,8 @@ def validate(model: nn.Module, dataloader: DataLoader, criterion: nn.Module,
 
 def train_model(model: nn.Module, train_loader: DataLoader, val_loader: DataLoader,
                 experiment: Any, callbacks: List[Any], num_epochs: int,
-                device: torch.device, logger: logging.Logger) -> nn.Module:
+                device: torch.device, logger: logging.Logger, 
+                resume_from: str = None) -> nn.Module:
     """
     Train the model for a specified number of epochs.
 
@@ -637,12 +663,25 @@ def train_model(model: nn.Module, train_loader: DataLoader, val_loader: DataLoad
         num_epochs (int): The number of epochs to train for.
         device (torch.device): The device to run the training on (CPU or GPU).
         logger (logging.Logger): Logger object for detailed logging.
+        resume_from (str): If set, the checkpoint will load and resume training from where it left off.
 
     Returns:
         nn.Module: The trained model.
     """
+
+    if resume_from:
+        checkpoint = torch.load(resume_from)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        optimizer = optim.Adam(model.parameters(), lr=0.001)
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        start_epoch = checkpoint['epoch'] + 1
+        experiment.set_state(checkpoint['experiment_state'])
+        logger.info(f"Resuming from epoch {start_epoch}")
+    else:
+        optimizer = optim.Adam(model.parameters(), lr=0.001)
+        start_epoch = 1
+
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
 
     logger.info(f"Starting training for {num_epochs} epochs")
     logger.info(f"Model: {model.__class__.__name__}")
@@ -650,7 +689,7 @@ def train_model(model: nn.Module, train_loader: DataLoader, val_loader: DataLoad
     logger.info(f"Criterion: {criterion.__class__.__name__}")
     logger.info(f"Device: {device}")
 
-    for epoch in range(1, num_epochs + 1):
+    for epoch in range(start_epoch, num_epochs + 1):
         logger.info(f"Epoch {epoch}/{num_epochs}")
 
         train_logs = train_epoch(model, train_loader, criterion, optimizer, device)
@@ -667,10 +706,12 @@ def train_model(model: nn.Module, train_loader: DataLoader, val_loader: DataLoad
         experiment.save_history('val', **val_logs_prefixed)
         experiment.update_plots()
 
+        experiment.increment_epoch()
+
         stop_training = False
         for callback in callbacks:
             if isinstance(callback, ModelCheckpoint):
-                callback.on_epoch_end(epoch, logs, model)
+                callback.on_epoch_end(epoch, logs, model, optimizer, experiment)
                 logger.info(f"ModelCheckpoint: Saved model at epoch {epoch}")
             elif isinstance(callback, ReduceLROnPlateau):
                 old_lr = optimizer.param_groups[0]['lr']
