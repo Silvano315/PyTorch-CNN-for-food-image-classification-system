@@ -51,17 +51,9 @@ def create_preprocessing_pipeline(
                 A.GaussianBlur(blur_limit=3),
             ], p=0.5),
             A.OneOf([
-                A.OpticalDistortion(distort_limit=1.0),
-                A.GridDistortion(num_steps=5, distort_limit=1.),
-                A.ElasticTransform(alpha=3),
-            ], p=0.5),
-            A.OneOf([
-                A.CLAHE(clip_limit=4.0),
                 A.Sharpen(),
-                A.Emboss(),
                 A.RandomBrightnessContrast(),
             ], p=0.5),
-            A.HueSaturationValue(p=0.5),
         ])
 
     transforms.append(ToTensorV2())
