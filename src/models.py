@@ -777,3 +777,58 @@ def get_predictions(model: torch.nn.Module, dataloader: DataLoader, device: torc
             all_labels.extend(labels.cpu().tolist())
     
     return np.array(all_labels), np.array(all_preds)
+
+
+def apply_gradcam(model: torch.nn.Module, image: torch.Tensor, target_class: int, layer_name: str = 'features') -> np.ndarray:
+    """
+    Apply Grad-CAM to the given image and model.
+
+    Args:
+        model (torch.nn.Module): The trained model.
+        image (torch.Tensor): The input image tensor.
+        target_class (int): The target class for Grad-CAM.
+        layer_name (str): The name of the layer to use for Grad-CAM. Default is 'features'.
+
+    Returns:
+        np.ndarray: The Grad-CAM heatmap.
+
+    Raises:
+        AttributeError: If the specified layer_name is not found in the model.
+        RuntimeError: If there's an error during the forward or backward pass.
+    """
+    model.eval()
+    image = image.unsqueeze(0)  
+    
+    try:
+        feature_extractor = getattr(model, layer_name)
+    except AttributeError:
+        raise AttributeError(f"Layer '{layer_name}' not found in the model.")
+
+    gradients = None
+    def save_gradients(grad):
+        nonlocal gradients
+        gradients = grad
+    
+    try:
+        image.requires_grad_()
+        features = feature_extractor(image)
+        features.register_hook(save_gradients)
+        output = model(image)
+        model.zero_grad()
+        one_hot = torch.zeros_like(output)
+        one_hot[0][target_class] = 1
+        output.backward(gradient=one_hot, retain_graph=True)
+    except RuntimeError as e:
+        raise RuntimeError(f"Error during forward or backward pass: {str(e)}")
+    
+    pooled_gradients = torch.mean(gradients, dim=[2, 3], keepdim=True)
+    activations = features.detach()
+    
+    for i in range(activations.size(1)):
+        activations[:, i, :, :] *= pooled_gradients[:, i, :, :]
+    
+    heatmap = torch.mean(activations, dim=1).squeeze()
+    heatmap = np.maximum(heatmap.cpu().numpy(), 0)
+    heatmap /= np.max(heatmap)
+    
+    return heatmap

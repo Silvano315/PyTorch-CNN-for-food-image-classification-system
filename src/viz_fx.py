@@ -11,9 +11,10 @@ from plotly.subplots import make_subplots
 from sklearn.metrics import confusion_matrix
 import torch
 import torchvision
+from torchvision import transforms
 
 from src.utils import calculate_mean_std
-
+from src.models import apply_gradcam
 
 def display_random_images(image_paths: List[str], n: int = 25) -> Tuple[plt.Figure, plt.Axes]:
     """
@@ -420,3 +421,73 @@ def plot_confusion_matrix(y_true: np.ndarray, y_pred: np.ndarray, classes: List[
     plt.tight_layout()
     plt.savefig('images/confusion_matrix.png')
     plt.close()
+
+
+def visualize_gradcam(model: torch.nn.Module, image: torch.Tensor, true_label: int, pred_label: int, 
+                      class_names: List[str], layer_name: str = 'features') -> None:
+    """
+    Visualize the original image and its Grad-CAM heatmap.
+
+    Args:
+        model (torch.nn.Module): The trained model.
+        image (torch.Tensor): The input image tensor.
+        true_label (int): The true label of the image.
+        pred_label (int): The predicted label by the model.
+        class_names (List[str]): List of class names.
+        layer_name (str): The name of the layer to use for Grad-CAM. Default is 'features'.
+
+    Returns:
+        None: Displays the plot.
+
+    Raises:
+        ValueError: If the input dimensions are incorrect.
+    """
+    if image.dim() != 3:
+        raise ValueError("Expected image tensor of shape (C, H, W)")
+    
+    heatmap = apply_gradcam(model, image, pred_label, layer_name)
+    image_pil = transforms.ToPILImage()(image)  
+    heatmap_pil = Image.fromarray(np.uint8(255 * heatmap)).resize(image_pil.size)
+    overlayed_image = Image.blend(image_pil, heatmap_pil.convert('RGB'), alpha=0.5)
+    
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
+    ax1.imshow(image_pil)
+    ax1.set_title(f"Original Image\nTrue: {class_names[true_label]}")
+    ax1.axis('off')
+    ax2.imshow(overlayed_image)
+    ax2.set_title(f"Grad-CAM\nPredicted: {class_names[pred_label]}")
+    ax2.axis('off')
+    plt.tight_layout()
+    plt.show()
+
+def visualize_random_gradcam(model: torch.nn.Module, test_loader: torch.utils.data.DataLoader, 
+                             class_names: List[str], layer_name: str = 'features') -> None:
+    """
+    Select a random image from the test_loader and visualize its Grad-CAM.
+
+    Args:
+        model (torch.nn.Module): The trained model.
+        test_loader (torch.utils.data.DataLoader): DataLoader for the test dataset.
+        class_names (List[str]): List of class names.
+        layer_name (str): The name of the layer to use for Grad-CAM. Default is 'features'.
+
+    Returns:
+        None: Displays the plot.
+
+    Raises:
+        RuntimeError: If there's an error during model prediction.
+    """
+    images, labels = next(iter(test_loader))
+    idx = random.randint(0, images.size(0) - 1)
+    image = images[idx]
+    true_label = labels[idx].item()
+    
+    try:
+        with torch.no_grad():
+            outputs = model(image.unsqueeze(0))
+            _, predicted = torch.max(outputs, 1)
+            pred_label = predicted[0].item()
+    except RuntimeError as e:
+        raise RuntimeError(f"Error during model prediction: {str(e)}")
+    
+    visualize_gradcam(model, image, true_label, pred_label, class_names, layer_name)
