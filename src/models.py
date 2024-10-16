@@ -509,7 +509,7 @@ class EfficientNetTransfer(nn.Module):
         super(EfficientNetTransfer, self).__init__()
         
         if efficientnet_version == 'b0':
-            efficientnet = models.efficientnet_b0(pretrained=pretrained)
+            efficientnet = models.efficientnet_b0(weights="EfficientNet_B0_Weights.DEFAULT")
         elif efficientnet_version == 'b1':
             efficientnet = models.efficientnet_b1(pretrained=pretrained)
         
