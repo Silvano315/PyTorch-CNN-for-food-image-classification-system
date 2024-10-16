@@ -176,6 +176,15 @@ class Experiment:
             self.log(f"Error loading optimizer: {str(e)}")
             raise
 
+    def save_checkpoint(self, model, optimizer, epoch, logs):
+        self.save_weights(model)
+        self.save_optimizer(optimizer)
+
+    def load_checkpoint(self, model, optimizer):
+        model = self.load_weights(model)
+        optimizer = self.load_optimizer(optimizer)
+        return model, optimizer
+
     def get_state(self):
         return {
             'epoch': self.epoch,
@@ -404,6 +413,7 @@ class ModelCheckpoint(Callback):
 
     def _save_checkpoint(self, model: torch.nn.Module, optimizer: torch.optim.Optimizer, 
                          epoch: int, logs: Dict[str, float], experiment: Any):
+        experiment.save_checkpoint(model, optimizer, epoch, logs)
         checkpoint = {
             'epoch': epoch,
             'model_state_dict': model.state_dict(),
@@ -685,6 +695,9 @@ def train_model(model: nn.Module, train_loader: DataLoader, val_loader: DataLoad
     """
 
     if resume_from:
+        #model, optimizer = experiment.load_checkpoint(model, optimizer)
+        #model, optimizer = experiment.resume(model, optimizer)
+        #start_epoch = experiment.epoch
         checkpoint = torch.load(resume_from)
         model.load_state_dict(checkpoint['model_state_dict'])
         optimizer = optim.Adam(model.parameters(), lr=0.001)
