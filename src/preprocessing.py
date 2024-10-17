@@ -46,10 +46,10 @@ def create_preprocessing_pipeline(
             A.RandomRotate90(),
             A.Flip(),
             A.Transpose(),
-            """A.OneOf([
-                A.Sharpen(alpha=(0.2,0.3), lightness=(0.5, 0.7)),
-                A.RandomBrightnessContrast(brightness_limit=0.1, contrast_limit=0.1),
-            ], p=0.2),"""
+            #A.OneOf([
+            #    A.Sharpen(alpha=(0.2,0.3), lightness=(0.5, 0.7)),
+            #    A.RandomBrightnessContrast(brightness_limit=0.1, contrast_limit=0.1),
+            #], p=0.2),
         ])
 
     transforms.append(ToTensorV2())
