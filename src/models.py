@@ -125,7 +125,7 @@ class Experiment:
                 **kwargs
             }, weights_fpath)
             shutil.copyfile(weights_fpath, self.latest_weights)
-            if self.is_best_loss(kwargs['val_loss']):
+            if 'val_loss' in kwargs and self.is_best_loss(kwargs['val_loss']):
                 self.best_weights_path = weights_fpath
             self.log(f"Successfully saved weights to {weights_fpath}")
         except Exception as e:
@@ -178,8 +178,11 @@ class Experiment:
             raise
 
     def save_checkpoint(self, model, optimizer, epoch, logs):
-        self.save_weights(model)
-        self.save_optimizer(optimizer)
+        self.save_weights(model, **logs)
+        if 'val_loss' in logs:
+            self.save_optimizer(optimizer, logs['val_loss'])
+        else:
+            self.save_optimizer(optimizer, float('inf'))
 
     def load_checkpoint(self, model, optimizer):
         model = self.load_weights(model)
