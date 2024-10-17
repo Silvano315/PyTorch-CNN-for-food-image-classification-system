@@ -2,6 +2,92 @@ import os
 import logging
 from typing import List, Tuple, Dict
 import numpy as np
+import shutil
+import tarfile
+import zipfile
+from pathlib import Path
+from tqdm import tqdm
+import requests
+import tempfile
+
+
+def extract_dataset(source: str, extract_path: str) -> None:
+    """
+    Extract a dataset file (tar.gz or zip) to a specified directory, showing progress,
+    and removing macOS hidden files. The source can be a local file path or a URL.
+
+    Args:
+    source (str): Path to the local file or URL of the dataset file.
+    extract_path (str): Path where the dataset should be extracted.
+
+    Raises:
+    FileNotFoundError: If the local file is not found.
+    requests.exceptions.RequestException: If there's an error downloading the file.
+    tarfile.ReadError: If there's an error reading the tar.gz file.
+    zipfile.BadZipFile: If there's an error reading the zip file.
+    """
+    extract_path = Path(extract_path)
+    extract_path.mkdir(parents=True, exist_ok=True)
+
+    if source.startswith('http://') or source.startswith('https://'):
+        print(f"Downloading file from {source}")
+        with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+            response = requests.get(source, stream=True)
+            response.raise_for_status()
+            total_size = int(response.headers.get('content-length', 0))
+            block_size = 8192
+            with tqdm(total=total_size, unit='iB', unit_scale=True, desc="Downloading") as pbar:
+                for data in response.iter_content(block_size):
+                    size = temp_file.write(data)
+                    pbar.update(size)
+            temp_file_path = temp_file.name
+    else:
+        temp_file_path = source
+        if not Path(temp_file_path).exists():
+            raise FileNotFoundError(f"The file {temp_file_path} does not exist.")
+
+    try:
+        try:
+            with tarfile.open(temp_file_path, 'r:gz') as tar:
+                members = tar.getmembers()
+                total_members = len(members)
+                with tqdm(total=total_members, unit='file', desc="Extracting files") as pbar:
+                    for member in members:
+                        tar.extract(member, path=extract_path)
+                        pbar.update(1)
+        except tarfile.ReadError:
+            with zipfile.ZipFile(temp_file_path, 'r') as zip_ref:
+                members = zip_ref.infolist()
+                total_members = len(members)
+                with tqdm(total=total_members, unit='file', desc="Extracting files") as pbar:
+                    for member in members:
+                        zip_ref.extract(member, path=extract_path)
+                        pbar.update(1)
+
+        print(f"Dataset extracted to {extract_path}")
+        print(f"Total files extracted: {total_members}")
+        print("Removing macOS hidden files...")
+        removed_files = 0
+        for root, dirs, files in os.walk(extract_path, topdown=False):
+            for name in files:
+                if name.startswith('._') or name == '.DS_Store':
+                    os.remove(os.path.join(root, name))
+                    removed_files += 1
+            for name in dirs:
+                if name == '__MACOSX':
+                    shutil.rmtree(os.path.join(root, name))
+                    removed_files += 1
+        print(f"Removed {removed_files} macOS hidden files/folders")
+        print(f"Final number of files: {total_members - removed_files}")
+
+    except (tarfile.ReadError, zipfile.BadZipFile) as e:
+        raise type(e)(f"Error reading the file: {temp_file_path}")
+    except Exception as e:
+        print(f"An unexpected error occurred: {str(e)}")
+        raise
+    finally:
+        if source.startswith('http://') or source.startswith('https://'):
+            os.unlink(temp_file_path)
 
 
 def get_paths_to_files(dir_path: str) -> Tuple[List[str], List[str]]:
