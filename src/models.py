@@ -38,10 +38,8 @@ class Experiment:
         self.train_history_fpath = os.path.join(self.history_dir, 'train.csv')
         self.val_history_fpath = os.path.join(self.history_dir, 'val.csv')
         self.test_history_fpath = os.path.join(self.history_dir, 'test.csv')
-        self.metrics = ['loss', 'accuracy', 'precision', 'recall', 'f1']
+        self.metrics = ['loss', 'accuracy', 'precision', 'recall', 'f1', 'lr']
         self.history = {split: {metric: [] for metric in self.metrics} for split in ['train', 'val', 'test']}
-        self.metrics.append('lr')
-        self.history['lr'] = []
 
     def log(self, msg: str):
         if self.logger:
@@ -93,16 +91,19 @@ class Experiment:
 
     def save_history(self, split: str, **kwargs):
         for metric, value in kwargs.items():
-            metric_name = metric[4:] if metric.startswith('val_') else metric
-            if metric_name not in self.history[split]:
-                self.history[split][metric_name] = []
-            self.history[split][metric_name].append(value)
+            if metric == 'lr':
+                self.history['train']['lr'].append(value) 
+            else:
+                metric_name = metric[4:] if metric.startswith('val_') else metric
+                if metric_name not in self.history[split]:
+                    self.history[split][metric_name] = []
+                self.history[split][metric_name].append(value)
+        
         fpath = getattr(self, f'{split}_history_fpath')
         with open(fpath, 'a') as f:
             values = [str(kwargs.get(metric, kwargs.get(f'val_{metric}', ''))) for metric in self.metrics]
             f.write(f"{self.epoch},{','.join(values)}\n")
-        if split == 'lr':
-            self.history['lr'].append(kwargs['lr'])
+        
         if split == 'val' and 'loss' in kwargs:
             if self.is_best_loss(kwargs['loss']):
                 self.best_val_loss = kwargs['loss']
@@ -721,8 +722,6 @@ def train_model(model: nn.Module, train_loader: DataLoader, val_loader: DataLoad
         logger.info(f"Epoch {epoch}/{num_epochs}")
 
         current_lr = optimizer.param_groups[0]['lr']
-        experiment.save_history('lr', lr=current_lr)
-
         train_logs = train_epoch(model, train_loader, criterion, optimizer, device)
         val_logs = validate(model, val_loader, criterion, device)
 
@@ -733,7 +732,7 @@ def train_model(model: nn.Module, train_loader: DataLoader, val_loader: DataLoad
         log_message += " | ".join([f"{k}: {v:.4f}" for k, v in logs.items()])
         logger.info(log_message)
 
-        experiment.save_history('train', **train_logs)
+        experiment.save_history('train', **train_logs, lr=current_lr)
         experiment.save_history('val', **val_logs_prefixed)
         experiment.update_plots()
 
