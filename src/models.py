@@ -86,6 +86,8 @@ class Experiment:
     def load_history_from_file(self, split: str):
         fpath = getattr(self, f'{split}_history_fpath')
         data = np.loadtxt(fpath, delimiter=',', skiprows=1)
+        if data.ndim == 1:  
+            data = data.reshape(1, -1) 
         for i, metric in enumerate(self.metrics):
             self.history[split][metric] = data[:, i+1].tolist()
 
@@ -676,7 +678,7 @@ def validate(model: nn.Module, dataloader: DataLoader, criterion: nn.Module,
     }
 
 
-def train_model(model: nn.Module, train_loader: DataLoader, val_loader: DataLoader,
+def train_model(model: nn.Module, optimizer: torch.optim.Optimizer, train_loader: DataLoader, val_loader: DataLoader,
                 experiment: Any, callbacks: List[Any], num_epochs: int,
                 device: torch.device, logger: logging.Logger, 
                 resume_from: str = None) -> nn.Module:
@@ -685,6 +687,7 @@ def train_model(model: nn.Module, train_loader: DataLoader, val_loader: DataLoad
 
     Args:
         model (nn.Module): The neural network model to train.
+        optimizer (torch.optim.Optimizer): The optimizer used for training.
         train_loader (DataLoader): The DataLoader for the training data.
         val_loader (DataLoader): The DataLoader for the validation data.
         experiment (Any): An object to track the experiment (e.g., for logging).
@@ -710,7 +713,7 @@ def train_model(model: nn.Module, train_loader: DataLoader, val_loader: DataLoad
         experiment.set_state(checkpoint['experiment_state'])
         logger.info(f"Resuming from epoch {start_epoch}")
     else:
-        optimizer = optim.Adam(model.parameters(), lr=0.001)
+        #optimizer = optim.Adam(model.parameters(), lr=0.001)
         start_epoch = 1
 
     criterion = nn.CrossEntropyLoss()
@@ -796,54 +799,70 @@ def get_predictions(model: torch.nn.Module, dataloader: DataLoader, device: torc
 
 def apply_gradcam(model: torch.nn.Module, image: torch.Tensor, target_class: int, layer_name: str = 'features') -> np.ndarray:
     """
-    Apply Grad-CAM to the given image and model.
+    Visualize the original image and its Grad-CAM heatmap.
+
+    This function applies Grad-CAM to the given image using the specified model and layer,
+    then displays the original image alongside the Grad-CAM heatmap overlaid on the original image.
 
     Args:
-        model (torch.nn.Module): The trained model.
-        image (torch.Tensor): The input image tensor.
-        target_class (int): The target class for Grad-CAM.
-        layer_name (str): The name of the layer to use for Grad-CAM. Default is 'features'.
+        model (torch.nn.Module): The trained model to use for Grad-CAM.
+        image (torch.Tensor): The input image tensor of shape (C, H, W).
+        true_label (int): The true label of the image.
+        pred_label (int): The predicted label of the image.
+        class_names (List[str]): A list of class names corresponding to the labels.
+        layer_name (str, optional): The name of the layer to use for Grad-CAM. Defaults to 'features'.
 
     Returns:
-        np.ndarray: The Grad-CAM heatmap.
+        None: This function doesn't return anything, it displays the plot using matplotlib.
 
     Raises:
-        AttributeError: If the specified layer_name is not found in the model.
-        RuntimeError: If there's an error during the forward or backward pass.
+        ValueError: If the input image tensor doesn't have 3 dimensions (C, H, W).
     """
     model.eval()
-    image = image.unsqueeze(0)  
-    
-    try:
-        feature_extractor = getattr(model, layer_name)
-    except AttributeError:
-        raise AttributeError(f"Layer '{layer_name}' not found in the model.")
+    image = image.unsqueeze(0)
+    image = image.requires_grad_()
 
+    if layer_name == 'features':
+        target_layers = model.features
+    else:
+        target_layers = model.features[-1]  
+
+    activations = None
     gradients = None
-    def save_gradients(grad):
+
+    def save_activation(module, input, output):
+        nonlocal activations
+        activations = output
+
+    def save_gradient(module, grad_input, grad_output):
         nonlocal gradients
-        gradients = grad
-    
+        gradients = grad_output[0]
+
+    handle_activation = target_layers.register_forward_hook(save_activation)
+    handle_gradient = target_layers.register_full_backward_hook(save_gradient)
+
     try:
-        image.requires_grad_()
-        features = feature_extractor(image)
-        features.register_hook(save_gradients)
         output = model(image)
+        
         model.zero_grad()
         one_hot = torch.zeros_like(output)
         one_hot[0][target_class] = 1
         output.backward(gradient=one_hot, retain_graph=True)
-    except RuntimeError as e:
-        raise RuntimeError(f"Error during forward or backward pass: {str(e)}")
-    
-    pooled_gradients = torch.mean(gradients, dim=[2, 3], keepdim=True)
-    activations = features.detach()
-    
-    for i in range(activations.size(1)):
-        activations[:, i, :, :] *= pooled_gradients[:, i, :, :]
-    
-    heatmap = torch.mean(activations, dim=1).squeeze()
-    heatmap = np.maximum(heatmap.cpu().numpy(), 0)
-    heatmap /= np.max(heatmap)
-    
-    return heatmap
+
+        pooled_gradients = torch.mean(gradients, dim=[2, 3], keepdim=True)
+        for i in range(activations.size(1)):
+            activations[:, i, :, :] *= pooled_gradients[:, i, :, :]
+
+        heatmap = torch.mean(activations, dim=1).squeeze().detach()
+        heatmap = F.relu(heatmap)
+        heatmap /= torch.max(heatmap)
+
+        return heatmap.cpu().numpy()
+
+    except Exception as e:
+        print(f"Error during Grad-CAM computation: {str(e)}")
+        return None
+
+    finally:
+        handle_activation.remove()
+        handle_gradient.remove()

@@ -1,5 +1,6 @@
 import random
 import os
+import cv2
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -423,35 +424,45 @@ def plot_confusion_matrix(y_true: np.ndarray, y_pred: np.ndarray, classes: List[
     plt.close()
 
 
-def visualize_gradcam(model: torch.nn.Module, image: torch.Tensor, true_label: int, pred_label: int, 
+def visualize_gradcam(model: torch.nn.Module, image: torch.Tensor, true_label: int, pred_label: int,
                       class_names: List[str], layer_name: str = 'features') -> None:
     """
     Visualize the original image and its Grad-CAM heatmap.
 
+    This function applies Grad-CAM to the given image using the specified model and layer,
+    then displays the original image alongside the Grad-CAM heatmap overlaid on the original image.
+
     Args:
-        model (torch.nn.Module): The trained model.
-        image (torch.Tensor): The input image tensor.
+        model (torch.nn.Module): The trained model to use for Grad-CAM.
+        image (torch.Tensor): The input image tensor of shape (C, H, W).
         true_label (int): The true label of the image.
-        pred_label (int): The predicted label by the model.
-        class_names (List[str]): List of class names.
-        layer_name (str): The name of the layer to use for Grad-CAM. Default is 'features'.
+        pred_label (int): The predicted label of the image.
+        class_names (List[str]): A list of class names corresponding to the labels.
+        layer_name (str, optional): The name of the layer to use for Grad-CAM. Defaults to 'features'.
 
     Returns:
-        None: Displays the plot.
+        None: This function doesn't return anything, it displays the plot using matplotlib.
 
     Raises:
-        ValueError: If the input dimensions are incorrect.
+        ValueError: If the input image tensor doesn't have 3 dimensions (C, H, W).
     """
     if image.dim() != 3:
         raise ValueError("Expected image tensor of shape (C, H, W)")
-    
+
+    mean = torch.tensor([0.5, 0.5, 0.5]).view(3, 1, 1)
+    std = torch.tensor([0.5, 0.5, 0.5]).view(3, 1, 1)
+    original_image = image * std + mean
+
     heatmap = apply_gradcam(model, image, pred_label, layer_name)
-    image_pil = transforms.ToPILImage()(image)  
-    heatmap_pil = Image.fromarray(np.uint8(255 * heatmap)).resize(image_pil.size)
-    overlayed_image = Image.blend(image_pil, heatmap_pil.convert('RGB'), alpha=0.5)
     
+    original_image_pil = transforms.ToPILImage()(original_image)
+    heatmap_resized = cv2.resize(heatmap, (original_image_pil.size[0], original_image_pil.size[1]))
+    heatmap_colored = cv2.applyColorMap(np.uint8(255 * heatmap_resized), cv2.COLORMAP_JET)
+    heatmap_colored = cv2.cvtColor(heatmap_colored, cv2.COLOR_BGR2RGB)
+    overlayed_image = cv2.addWeighted(np.array(original_image_pil), 0.7, heatmap_colored, 0.3, 0)
+
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
-    ax1.imshow(image_pil)
+    ax1.imshow(original_image_pil)
     ax1.set_title(f"Original Image\nTrue: {class_names[true_label]}")
     ax1.axis('off')
     ax2.imshow(overlayed_image)
@@ -482,9 +493,11 @@ def visualize_random_gradcam(model: torch.nn.Module, test_loader: torch.utils.da
     image = images[idx]
     true_label = labels[idx].item()
     
+    device = next(model.parameters()).device
+    model.eval()
     try:
         with torch.no_grad():
-            outputs = model(image.unsqueeze(0))
+            outputs = model(image.unsqueeze(0).to(device))
             _, predicted = torch.max(outputs, 1)
             pred_label = predicted[0].item()
     except RuntimeError as e:
