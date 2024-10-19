@@ -38,7 +38,64 @@ Project Objectives:
 
 ## Dataset
 
-The project will be based on the Food Classification dataset, enriched with augmentation techniques to improve the diversity and quality of the available data.
+The project will be based on the Food Classification dataset, enriched with augmentation techniques to improve the diversity and quality of the available data. This is the [link](https://proai-datasets.s3.eu-west-3.amazonaws.com/dataset_food_classification.zip) to download the dataset.
+
+This dataset is composed by:
+- 14 classes with
+  - 640 images for training
+  - 160 images for validation
+  - 200 images for test
+
+## 🛠️ Methods with PyTorch
+
+This project leverages PyTorch to implement a robust and flexible system for training and evaluating CNN models. I've designed several custom classes to streamline the experimental process, you can find them [here](src/models.py)
+
+### Experiment Class
+
+The `Experiment` class serves as the backbone of the training pipeline. It manages:
+
+- Logging of training progress
+- Saving and loading of model weights
+- Visualization of training history
+- Exporting of results
+
+Key features:
+- Automatic creation of directory structure for each experiment
+- CSV logging of training and validation metrics
+- Plotting of training history
+- JSON export of final results
+
+### Callback System
+
+I've implemented a callback system inspired by Keras, allowing for flexible control of the training process:
+
+1. **EarlyStopping**: Prevents overfitting by stopping training when a monitored metric has stopped improving.
+2. **ModelCheckpoint**: Saves the best model based on a specified metric.
+3. **ReduceLROnPlateau**: Reduces learning rate when a metric has stopped improving.
+
+### Model Architecture
+
+I've implemented two main model architectures:
+
+1. **BaselineCNN**: A simple CNN architecture for baseline comparisons.
+2. **EfficientNetTransfer**: A transfer learning model based on EfficientNet, allowing for easy experimentation with different EfficientNet versions.
+
+### Training and Evaluation Functions
+
+The `train_model` function encapsulates the entire training loop, including:
+
+- Epoch-wise training and validation
+- Logging of metrics
+- Execution of callbacks
+- Resuming training from checkpoints
+
+The `validate` and `get_predictions` functions provide easy-to-use interfaces for model evaluation and inference.
+
+### Grad-CAM Visualization
+
+I've implemented the Grad-CAM algorithm in the `apply_gradcam` function, allowing for visual explanation of model decisions.
+
+This modular and extensible design allows for easy experimentation with different models, training strategies, and visualization techniques.
 
 ## Methods with PyTorch
 
