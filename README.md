@@ -19,7 +19,7 @@
 - [EXTRA: GUI for a user-friendly system](#EXTRA-GUI-for-a-user-friendly-system)
 
 
-## Project Overview
+## 🌟 Project Overview
 
 This repository is the sixth project of the master's degree in AI Engineering with [Profession AI](https://profession.ai), all the credits for the requests and idea go to this team. 
 
@@ -36,7 +36,7 @@ Project Objectives:
 - Fine Tuning and Hyperparameters Choice: create a custom classifier, choose the hyperparameters and optimize the model through training and validation processes.
 - Validation and Regularization: retraining with validation and regularization techniques to improve the model performance.
 
-## Dataset
+## 🍽️ Dataset
 
 The project will be based on the Food Classification dataset, enriched with augmentation techniques to improve the diversity and quality of the available data. This is the [link](https://proai-datasets.s3.eu-west-3.amazonaws.com/dataset_food_classification.zip) to download the dataset.
 
@@ -97,9 +97,35 @@ I've implemented the Grad-CAM algorithm in the `apply_gradcam` function, allowin
 
 This modular and extensible design allows for easy experimentation with different models, training strategies, and visualization techniques.
 
-## Methods with PyTorch
+## 🖼️ Visualization and Preprocessing
 
-## Visualization and Preprocess
+I conducted a comprehensive Exploratory Data Analysis to understand this dataset better. The full EDA can be found in the [project notebook](pytorch_CNN.ipynb), but here are some key insights:
+
+- Class Distribution: The dataset is well-balanced across all 14 classes, with:
+  - 640 images per class in the training set
+  - 200 images per class in the test set
+  - 160 images per class in the validation set
+
+- Image Dimensions: All images are consistently sized at 512x512 pixels.
+
+- Color Distribution: Analysis of a sample of images revealed a tendency towards red tones, with less representation in the blue spectrum.
+
+For a more detailed visual exploration of the dataset, including class distribution plots, image dimension analysis, and color histograms, please refer to the EDA section in the project notebook. Functions code is [here](src/viz_fx.py)
+
+### Preprocessing and Data Augmentation
+
+Preprocessing pipeline was implemented using the `Albumentations` library, chosen for its efficiency and wide range of image augmentation techniques. The pipeline includes:
+
+1. Resizing: All images are resized to 224x224 pixels to standardize input for our models.
+2. Normalization: Images are normalized using mean and standard deviation values of (0.5, 0.5, 0.5) for each channel.
+
+For data augmentation, I implemented a conservative approach to avoid over-distorting the food images:
+
+1. A.RandomRotate90()
+2. A.Flip()
+3. A.Transpose()
+
+You can find [here](src/preprocessing.py) the class Transforms and methods I've used for this project step.
 
 ## Baseline CNN Model
 
