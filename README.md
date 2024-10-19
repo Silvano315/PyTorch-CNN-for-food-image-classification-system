@@ -116,7 +116,7 @@ For a more detailed visual exploration of the dataset, including class distribut
 
 Preprocessing pipeline was implemented using the `Albumentations` library, chosen for its efficiency and wide range of image augmentation techniques. The pipeline includes:
 
-1. Resizing: All images are resized to 224x224 pixels to standardize input for our models.
+1. Resizing: All images are resized to 224x224 pixels to standardize input for these models.
 2. Normalization: Images are normalized using mean and standard deviation values of (0.5, 0.5, 0.5) for each channel.
 
 For data augmentation, I implemented a conservative approach to avoid over-distorting the food images:
@@ -127,19 +127,66 @@ For data augmentation, I implemented a conservative approach to avoid over-disto
 
 You can find [here](src/preprocessing.py) the class Transforms and methods I've used for this project step.
 
-## Baseline CNN Model
+## 🔬 Baseline CNN Models
 
 ### Model Architecture
+
+I implemented a baseline Convolutional Neural Network (CNN) model to establish a performance benchmark. The model architecture is defined in the `BaselineCNN` class within the `models.py` file. This class includes the `__init__` method for setting up the network layers and the `forward` method for defining the forward pass.
+
+For a detailed look at the model architecture, please refer to the `models.py` file, [here](src/models.py).
 
 ### Results of Baseline CNNs
 
-## Transfer Learning
+I trained and evaluated the baseline model using various metrics:
+
+- Loss
+- Accuracy
+- Precision
+- Recall
+- F1 Score
+
+Additionally, I generated a confusion matrix using the test data to visualize the model's performance across different classes.
+
+As expected for a baseline model, the performance was modest but provided a good starting point for comparison. Both versions of the baseline model (with and without data augmentation) achieved an accuracy slightly above 60%. Considering this is a 14-class classification problem, this baseline performance is respectable. Also, results from test set are similir to what I got from trainign and validation.
+
+It's worth noting that I experimented with additional augmentation techniques like `A.Sharpen` and `RandomBrightnessContrast`, but these did not significantly impact the results.
+
+For a comprehensive analysis of the baseline model's performance, including detailed metrics and visualizations, please refer to the [project notebook](pytorch_CNN.ipynb), where you can train and evaluate these models. Plots from Baseline CNN with augmentation are present in history [folder](experiments/BaselineCNN_with_aug/history/) and [here](images/).
+
+## 🚀 Transfer Learning
 
 ### Model Architecture
 
-### GRAD-CAM implementation
+For the main model, I implemented transfer learning using EfficientNet. The `EfficientNetTransfer` class in `models.py` encapsulates this architecture. This approach leverages pre-trained weights on large datasets, allowing for efficient learning on this specific food classification task.
+
+For a detailed look at the model architecture and implementation, please refer to the `models.py` file, [here](src/models.py).
+
+### GRAD-CAM Implementation
+
+I implemented Gradient-weighted Class Activation Mapping (Grad-CAM) to visualize which parts of an input image are important for the model's classification decision. Grad-CAM works by:
+
+1. Extracting the gradient information flowing into the last convolutional layer of the CNN.
+2. Using this gradient information to highlight the important regions in the image for predicting the concept.
+
+This technique provides insights into the model's decision-making process. An example Grad-CAM visualization is shown below:
+
+![Grad-CAM Example](images/gradcam_example.png)
 
 ### Results of Transfer Learning
+
+EfficientNet-based transfer learning model achieved impressive results across all datasets. Here's a summary of the performance:
+
+| Dataset       | Loss (±SD)  | Accuracy (±SD) | Precision (±SD) | Recall (±SD) | F1 Score (±SD) |
+|---------------|-------------|----------------|-----------------|--------------|----------------|
+| Training Set  | 0.65 ± 0.19 | 0.79 ± 0.04*   | 0.79 ± 0.04     | 0.79 ± 0.04  | 0.79 ± 0.04    |
+| Validation Set| 0.65 ± 0.09 | 0.79 ± 0.01    | 0.80 ± 0.01     | 0.79 ± 0.01  | 0.79 ± 0.01    |
+| Test Set      | 0.64      | 0.80         | 0.80          | 0.80       | 0.80         |
+
+*Note: Training and Validation results are up to epoch 60 (early stopping). Peak accuracy during training exceeded 81%.
+
+These results demonstrate excellent performance, with approximately 80% accuracy across a 14-class classification problem. This significant improvement over the baseline model showcases the power of transfer learning and the effectiveness of EfficientNet for this task.
+
+The robust code structure, including custom classes for experiment management and callbacks, facilitated efficient model training and evaluation. For a comprehensive analysis of the model's performance, including detailed metrics, learning curves, and additional visualizations, please refer to the project notebook.
 
 ## Key Insights
 
