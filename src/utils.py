@@ -1,14 +1,15 @@
 import os
 import logging
 from typing import List, Tuple, Dict
-import numpy as np
-import shutil
 import tarfile
 import zipfile
 from pathlib import Path
 from tqdm import tqdm
 import requests
 import tempfile
+
+from shutil import rmtree
+from numpy import mean, std
 
 
 def extract_dataset(source: str, extract_path: str) -> None:
@@ -75,7 +76,7 @@ def extract_dataset(source: str, extract_path: str) -> None:
                     removed_files += 1
             for name in dirs:
                 if name == '__MACOSX':
-                    shutil.rmtree(os.path.join(root, name))
+                    rmtree(os.path.join(root, name))
                     removed_files += 1
         print(f"Removed {removed_files} macOS hidden files/folders")
         print(f"Final number of files: {total_members - removed_files}")
@@ -182,4 +183,4 @@ def get_logger(ch_log_level: int = logging.INFO, fh_log_level: int = logging.INF
 
 
 def calculate_mean_std(data):
-    return np.mean(data), np.std(data)
+    return mean(data), std(data)

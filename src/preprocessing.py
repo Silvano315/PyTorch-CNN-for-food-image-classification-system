@@ -1,8 +1,8 @@
 import albumentations as A
-from albumentations.pytorch import ToTensorV2
 import numpy as np
 import torch
 import torchvision
+from albumentations.pytorch import ToTensorV2
 from torch.utils.data import DataLoader
 from torchvision.datasets import ImageFolder
 from typing import Tuple, Dict

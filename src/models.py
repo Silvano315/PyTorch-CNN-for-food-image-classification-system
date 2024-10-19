@@ -5,12 +5,11 @@ import logging
 import shutil
 import sys
 import json
-from pathlib import Path
 import matplotlib.pyplot as plt
-from typing import Dict, List, Any, Tuple, Callable, Optional
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+from typing import Dict, List, Any, Tuple
 from torch.utils.data import DataLoader
 from torchvision import models
 from sklearn.metrics import precision_score, recall_score, f1_score
