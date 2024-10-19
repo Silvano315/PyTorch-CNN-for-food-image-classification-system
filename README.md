@@ -14,7 +14,6 @@
   - [GRAD-CAM implementation](#grad-cam-implementation)
   - [Results of Transfer Learning](#results-of-transfer-learning)
 - [Key Insights](#key-insights)
-- [Conclusions](#conclusions)
 - [How to Run](#how-to-run)
 - [EXTRA: GUI for a user-friendly system](#EXTRA-GUI-for-a-user-friendly-system)
 
@@ -188,11 +187,46 @@ These results demonstrate excellent performance, with approximately 80% accuracy
 
 The robust code structure, including custom classes for experiment management and callbacks, facilitated efficient model training and evaluation. For a comprehensive analysis of the model's performance, including detailed metrics, learning curves, and additional visualizations, please refer to the project notebook.
 
-## Key Insights
+## 🎯 Key Insights
 
-## Conclusions
+My journey through this food image classification project has revealed several important insights:
 
-## How to Run
+1. **Transfer Learning Effectiveness**: The significant performance boost from my baseline CNN to the EfficientNet-based model demonstrates the power of transfer learning in image classification tasks.
 
-## EXTRA: GUI for a user-friendly system
+2. **Data Augmentation Impact**: While conservative approach to data augmentation didn't dramatically improve the baseline model, it helped prevent overfitting in transfer learning model.
 
+3. **Model Interpretability**: The implementation of Grad-CAM allowed me to visualize and interpret model's decision-making process, providing valuable insights into which parts of the images are most influential for classification.
+
+4. **Balanced Dataset Importance**: The well-balanced nature of the dataset (equal number of images per class) contributed to the model's consistent performance across all classes.
+
+5. **Robust Code Structure**: My implementation of custom classes for experiment management and callbacks greatly facilitated the training process and result analysis.
+
+While my model performs well, there's always room for improvement. Future work could explore more advanced architectures, fine-tuning strategies, or the incorporation of additional data.
+
+## 🚀 How to Run
+
+This project can be easily run using Google Colab. Here's how:
+
+1. Open the project notebook in Google Colab.
+2. The notebook contains all necessary steps, including cloning the repository and loading the data.
+3. Run the cells in order to reproduce the analysis and results.
+
+If you prefer to run the project locally:
+
+1. Clone the repository:
+
+````
+git clone https://github.com/Silvano315/PyTorch-CNN-for-food-image-classification-system.git
+````
+
+2. Install the required dependencies:
+
+````
+pip install -r requirements.txt
+````
+
+3. Open and run the Jupyter notebooks in your local environment.
+
+## 🖥️ EXTRA: GUI for a user-friendly system
+
+**TBD**
